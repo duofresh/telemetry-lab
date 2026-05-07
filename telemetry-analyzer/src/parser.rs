@@ -1,5 +1,4 @@
 use bytemuck::{Pod, Zeroable};
-use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::Path;
@@ -93,7 +92,7 @@ pub fn parse_rts_file<P: AsRef<Path>>(path: P) -> io::Result<TelemetrySession> {
         Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => false,
         Err(e) => return Err(e),
     } {
-        let frame: RtsTelemetryFrame = bytemuck::cast(frame_bytes.as_slice().try_into().unwrap());
+        let frame: RtsTelemetryFrame = bytemuck::pod_read_unaligned(&frame_bytes);
         frames.push(frame);
     }
 

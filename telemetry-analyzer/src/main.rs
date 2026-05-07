@@ -4,18 +4,10 @@ use parser::{parse_rts_file, TelemetrySession};
 use eframe::egui;
 use egui_plot::{Line, Plot, PlotPoints, Points};
 
-fn main() -> eframe::Result {
+fn main() -> eframe::Result<()> {
     println!("Telemetry Analyzer Starting...");
 
-    // Test reading the dummy file
-    let path = "../telemetry-fetcher/dummy_telemetry.rts";
-    let session = match parse_rts_file(path) {
-        Ok(s) => Some(s),
-        Err(e) => {
-            eprintln!("Failed to parse RTS file: {}", e);
-            None
-        }
-    };
+    let session = None; // Start without a file loaded
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([1200.0, 800.0]),
@@ -112,11 +104,27 @@ impl eframe::App for AnalyzerApp {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.heading("Telemetry Analyzer");
+                
+                if ui.button("Open File...").clicked() {
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("RTS Telemetry", &["rts"])
+                        .set_directory("../telemetry-fetcher")
+                        .pick_file() 
+                    {
+                        match parse_rts_file(&path) {
+                            Ok(s) => self.session = Some(s),
+                            Err(e) => eprintln!("Failed to open file: {}", e),
+                        }
+                    }
+                }
+
+                ui.separator();
+
                 if let Some(session) = &self.session {
                     ui.label(format!("Game: {:?}", session.game_id));
                     ui.label(format!("Frames: {}", session.frames.len()));
                 } else {
-                    ui.label("No data loaded.");
+                    ui.label("No data loaded. Please open a file.");
                 }
             });
         });

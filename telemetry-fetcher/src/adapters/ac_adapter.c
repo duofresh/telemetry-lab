@@ -3,31 +3,22 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-#ifdef _WIN32
-#include <windows.h>
+#include "adapters/ac_adapter.h"
 
-typedef struct {
-    HANDLE hPhysics;
-    HANDLE hGraphics;
-    HANDLE hStatic;
-    
-    SPageFilePhysics* physics;
-    SPageFileGraphics* graphics;
-    SPageFileStatic* static_info;
-} ac_adapter_t;
+#ifdef _WIN32
 
 bool ac_adapter_init(ac_adapter_t* adapter) {
-    adapter->hPhysics = OpenFileMapping(PAGE_READONLY, FALSE, TEXT("Local\\acpmf_physics"));
+    adapter->hPhysics = OpenFileMapping(FILE_MAP_READ, FALSE, TEXT("Local\\acpmf_physics"));
     if (!adapter->hPhysics) return false;
-    adapter->physics = (SPageFilePhysics*)MapViewOfFile(adapter->hPhysics, FILE_MAP_READ, 0, 0, sizeof(SPageFilePhysics));
+    adapter->physics = (SPageFilePhysics*)MapViewOfFile(adapter->hPhysics, FILE_MAP_READ, 0, 0, 0);
 
-    adapter->hGraphics = OpenFileMapping(PAGE_READONLY, FALSE, TEXT("Local\\acpmf_graphics"));
+    adapter->hGraphics = OpenFileMapping(FILE_MAP_READ, FALSE, TEXT("Local\\acpmf_graphics"));
     if (!adapter->hGraphics) return false;
-    adapter->graphics = (SPageFileGraphics*)MapViewOfFile(adapter->hGraphics, FILE_MAP_READ, 0, 0, sizeof(SPageFileGraphics));
+    adapter->graphics = (SPageFileGraphics*)MapViewOfFile(adapter->hGraphics, FILE_MAP_READ, 0, 0, 0);
 
-    adapter->hStatic = OpenFileMapping(PAGE_READONLY, FALSE, TEXT("Local\\acpmf_static"));
+    adapter->hStatic = OpenFileMapping(FILE_MAP_READ, FALSE, TEXT("Local\\acpmf_static"));
     if (!adapter->hStatic) return false;
-    adapter->static_info = (SPageFileStatic*)MapViewOfFile(adapter->hStatic, FILE_MAP_READ, 0, 0, sizeof(SPageFileStatic));
+    adapter->static_info = (SPageFileStatic*)MapViewOfFile(adapter->hStatic, FILE_MAP_READ, 0, 0, 0);
 
     return (adapter->physics && adapter->graphics && adapter->static_info);
 }
@@ -72,9 +63,6 @@ void ac_adapter_close(ac_adapter_t* adapter) {
 
 #else
 // Stub for non-Windows compilation
-typedef struct {
-    int dummy;
-} ac_adapter_t;
 
 bool ac_adapter_init(ac_adapter_t* adapter) { return false; }
 bool ac_adapter_read(ac_adapter_t* adapter, rts_telemetry_frame_t* frame) { return false; }

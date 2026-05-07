@@ -1,0 +1,14 @@
+# CMake / C
+build/
+*.exe
+.vs/
+out/
+
+# Rust
+target/
+**/*.rs.bk
+
+# Data files
+*.rts
+telemetry-fetcher/*.rts
+
