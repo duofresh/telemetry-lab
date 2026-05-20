@@ -2,25 +2,36 @@
 #include "rts/telemetry_frame.h"
 #include <stdio.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include "adapters/ac_adapter.h"
 
 #ifdef _WIN32
 
 bool ac_adapter_init(ac_adapter_t* adapter) {
-    adapter->hPhysics = OpenFileMapping(FILE_MAP_READ, FALSE, TEXT("Local\\acpmf_physics"));
-    if (!adapter->hPhysics) return false;
-    adapter->physics = (SPageFilePhysics*)MapViewOfFile(adapter->hPhysics, FILE_MAP_READ, 0, 0, 0);
+    if (!adapter) return false;
+    memset(adapter, 0, sizeof(ac_adapter_t));
 
-    adapter->hGraphics = OpenFileMapping(FILE_MAP_READ, FALSE, TEXT("Local\\acpmf_graphics"));
-    if (!adapter->hGraphics) return false;
-    adapter->graphics = (SPageFileGraphics*)MapViewOfFile(adapter->hGraphics, FILE_MAP_READ, 0, 0, 0);
+    adapter->hPhysics = OpenFileMapping(PAGE_READONLY, FALSE, TEXT("Local\\acpmf_physics"));
+    if (!adapter->hPhysics) goto fail;
+    adapter->physics = (SPageFilePhysics*)MapViewOfFile(adapter->hPhysics, FILE_MAP_READ, 0, 0, sizeof(SPageFilePhysics));
+    if (!adapter->physics) goto fail;
 
-    adapter->hStatic = OpenFileMapping(FILE_MAP_READ, FALSE, TEXT("Local\\acpmf_static"));
-    if (!adapter->hStatic) return false;
-    adapter->static_info = (SPageFileStatic*)MapViewOfFile(adapter->hStatic, FILE_MAP_READ, 0, 0, 0);
+    adapter->hGraphics = OpenFileMapping(PAGE_READONLY, FALSE, TEXT("Local\\acpmf_graphics"));
+    if (!adapter->hGraphics) goto fail;
+    adapter->graphics = (SPageFileGraphics*)MapViewOfFile(adapter->hGraphics, FILE_MAP_READ, 0, 0, sizeof(SPageFileGraphics));
+    if (!adapter->graphics) goto fail;
 
-    return (adapter->physics && adapter->graphics && adapter->static_info);
+    adapter->hStatic = OpenFileMapping(PAGE_READONLY, FALSE, TEXT("Local\\acpmf_static"));
+    if (!adapter->hStatic) goto fail;
+    adapter->static_info = (SPageFileStatic*)MapViewOfFile(adapter->hStatic, FILE_MAP_READ, 0, 0, sizeof(SPageFileStatic));
+    if (!adapter->static_info) goto fail;
+
+    return true;
+
+fail:
+    ac_adapter_close(adapter);
+    return false;
 }
 
 bool ac_adapter_read(ac_adapter_t* adapter, rts_telemetry_frame_t* frame) {

@@ -21,22 +21,65 @@ fn main() -> eframe::Result<()> {
     )
 }
 
+struct CachedPlots {
+    speed: PlotPoints,
+    throttle: PlotPoints,
+    brake: PlotPoints,
+    gps: PlotPoints,
+    fl_temp: PlotPoints,
+}
+
+impl CachedPlots {
+    fn from_session(session: &TelemetrySession) -> Self {
+        let speed = session.frames.iter()
+            .map(|f| [f.lap_distance as f64, f.speed_ms as f64 * 3.6]) // convert to km/h
+            .collect::<Vec<[f64; 2]>>();
+        
+        let throttle = session.frames.iter()
+            .map(|f| [f.lap_distance as f64, f.throttle as f64 * 100.0])
+            .collect::<Vec<[f64; 2]>>();
+        
+        let brake = session.frames.iter()
+            .map(|f| [f.lap_distance as f64, f.brake as f64 * 100.0])
+            .collect::<Vec<[f64; 2]>>();
+        
+        let gps = session.frames.iter()
+            .map(|f| [f.pos_x as f64, f.pos_z as f64]) // top-down view
+            .collect::<Vec<[f64; 2]>>();
+        
+        let fl_temp = session.frames.iter()
+            .map(|f| [f.lap_distance as f64, f.tire_temp_c[0] as f64])
+            .collect::<Vec<[f64; 2]>>();
+            
+        Self {
+            speed: PlotPoints::new(speed),
+            throttle: PlotPoints::new(throttle),
+            brake: PlotPoints::new(brake),
+            gps: PlotPoints::new(gps),
+            fl_temp: PlotPoints::new(fl_temp),
+        }
+    }
+}
+
 struct AnalyzerApp {
     session: Option<TelemetrySession>,
     selected_lap: usize,
+    cached_plots: Option<CachedPlots>,
 }
 
 impl AnalyzerApp {
     fn new(session: Option<TelemetrySession>) -> Self {
-        Self { session, selected_lap: 0 }
+        let cached_plots = session.as_ref().map(CachedPlots::from_session);
+        Self {
+            session,
+            selected_lap: 0,
+            cached_plots,
+        }
     }
 
     fn plot_speed(&self, ui: &mut egui::Ui) {
-        if let Some(session) = &self.session {
-            let points: PlotPoints = session.frames.iter()
-                .map(|f| [f.lap_distance as f64, f.speed_ms as f64 * 3.6]) // convert to km/h
-                .collect();
-            let line = Line::new(points).name("Speed (km/h)").color(egui::Color32::LIGHT_BLUE);
+        if let Some(cached) = &self.cached_plots {
+            let line = Line::new(cached.speed.clone()).name("Speed (km/h)").color(egui::Color32::LIGHT_BLUE);
             
             Plot::new("speed_plot")
                 .view_aspect(4.0)
@@ -45,16 +88,9 @@ impl AnalyzerApp {
     }
 
     fn plot_inputs(&self, ui: &mut egui::Ui) {
-        if let Some(session) = &self.session {
-            let throttle_points: PlotPoints = session.frames.iter()
-                .map(|f| [f.lap_distance as f64, f.throttle as f64 * 100.0])
-                .collect();
-            let brake_points: PlotPoints = session.frames.iter()
-                .map(|f| [f.lap_distance as f64, f.brake as f64 * 100.0])
-                .collect();
-            
-            let throttle_line = Line::new(throttle_points).name("Throttle %").color(egui::Color32::GREEN);
-            let brake_line = Line::new(brake_points).name("Brake %").color(egui::Color32::RED);
+        if let Some(cached) = &self.cached_plots {
+            let throttle_line = Line::new(cached.throttle.clone()).name("Throttle %").color(egui::Color32::GREEN);
+            let brake_line = Line::new(cached.brake.clone()).name("Brake %").color(egui::Color32::RED);
 
             Plot::new("inputs_plot")
                 .view_aspect(4.0)
@@ -66,12 +102,8 @@ impl AnalyzerApp {
     }
 
     fn plot_gps(&self, ui: &mut egui::Ui) {
-        if let Some(session) = &self.session {
-            let points: PlotPoints = session.frames.iter()
-                .map(|f| [f.pos_x as f64, f.pos_z as f64]) // top-down view
-                .collect();
-            
-            let track = Points::new(points).name("Racing Line").color(egui::Color32::YELLOW).radius(2.0);
+        if let Some(cached) = &self.cached_plots {
+            let track = Points::new(cached.gps.clone()).name("Racing Line").color(egui::Color32::YELLOW).radius(2.0);
 
             Plot::new("gps_plot")
                 .data_aspect(1.0)
@@ -82,13 +114,8 @@ impl AnalyzerApp {
     }
 
     fn plot_tires(&self, ui: &mut egui::Ui) {
-        if let Some(session) = &self.session {
-            // Plot FL tire temp
-            let fl_temp_points: PlotPoints = session.frames.iter()
-                .map(|f| [f.lap_distance as f64, f.tire_temp_c[0] as f64])
-                .collect();
-            
-            let fl_line = Line::new(fl_temp_points).name("FL Temp (°C)").color(egui::Color32::LIGHT_RED);
+        if let Some(cached) = &self.cached_plots {
+            let fl_line = Line::new(cached.fl_temp.clone()).name("FL Temp (°C)").color(egui::Color32::LIGHT_RED);
 
             Plot::new("tire_plot")
                 .view_aspect(4.0)
@@ -112,7 +139,10 @@ impl eframe::App for AnalyzerApp {
                         .pick_file() 
                     {
                         match parse_rts_file(&path) {
-                            Ok(s) => self.session = Some(s),
+                            Ok(s) => {
+                                self.cached_plots = Some(CachedPlots::from_session(&s));
+                                self.session = Some(s);
+                            }
                             Err(e) => eprintln!("Failed to open file: {}", e),
                         }
                     }

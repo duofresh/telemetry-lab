@@ -80,7 +80,10 @@ bool iracing_adapter_read(iracing_adapter_t* adapter, rts_telemetry_frame_t* fra
     if (adapter->offset_steering >= 0) frame->steering = *(float*)(data_buf + adapter->offset_steering);
     if (adapter->offset_lap_dist >= 0) frame->lap_distance = *(float*)(data_buf + adapter->offset_lap_dist);
 
-    frame->session_time_ms = adapter->header->varBuf[latest].tickCount * (1000 / adapter->header->tickRate);
+    int tick_rate = adapter->header->tickRate;
+    frame->session_time_ms = (tick_rate > 0)
+        ? (adapter->header->varBuf[latest].tickCount * (1000 / tick_rate))
+        : 0;
 
     return true;
 }
